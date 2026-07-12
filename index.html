@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CloudDrop - Instant Cross-Device Sync</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+        .dark .glass-panel {
+            background: rgba(15, 23, 42, 0.85);
+        }
+    </style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 min-h-screen transition-colors duration-300">
+    
+    <!-- Toast Notification System -->
+    <div id="toast-container" class="fixed top-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <div class="max-w-4xl mx-auto px-4 py-8">
+        <!-- Header -->
+        <header class="flex flex-col sm:flex-row justify-between items-center gap-4 mb-8">
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white text-2xl shadow-lg shadow-indigo-500/30">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-bold tracking-tight">CloudDrop</h1>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">Instant real-time device clipboard & file sharing</p>
+                </div>
+            </div>
+            
+            <!-- Theme Toggle -->
+            <button id="theme-toggle" class="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition shadow-sm">
+                <i class="fa-solid fa-moon dark:hidden text-slate-600"></i>
+                <i class="fa-solid fa-sun hidden dark:inline text-amber-400"></i>
+            </button>
+        </header>
+
+        <!-- Room Selector Bar -->
+        <div class="glass-panel border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm mb-6">
+            <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+                <div class="space-y-1 flex-1">
+                    <label class="text-xs font-semibold uppercase tracking-wider text-slate-400">Select Sync Room</label>
+                    <div class="flex items-center gap-3">
+                        <!-- Dropdown replacing original text input -->
+                        <select id="room-select" class="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-semibold text-slate-700 dark:text-slate-200 cursor-pointer w-48">
+                            <option value="room-1">Room 1</option>
+                            <option value="room-2">Room 2</option>
+                            <option value="room-3">Room 3</option>
+                            <option value="room-4">Room 4</option>
+                            <option value="room-5">Room 5</option>
+                        </select>
+                        <span id="status-badge" class="px-2.5 py-1 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300">Connecting</span>
+                    </div>
+                </div>
+
+                <button id="share-room-btn" class="px-4 py-2.5 text-sm font-semibold border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition text-slate-600 dark:text-slate-300 flex items-center justify-center gap-2" title="Copy Room URL for other devices">
+                    <i class="fa-solid fa-share-nodes text-indigo-500"></i> Share Room URL
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Workspace -->
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+            
+            <!-- Left Side: Input Panel -->
+            <div class="md:col-span-5 space-y-6">
+                <div class="glass-panel border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
+                    <h2 class="text-lg font-bold mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-circle-plus text-indigo-500"></i> Drop Content
+                    </h2>
+
+                    <!-- Tabs -->
+                    <div class="flex border-b border-slate-200 dark:border-slate-800 mb-4">
+                        <button id="tab-text" class="flex-1 pb-2 text-sm font-semibold text-indigo-600 border-b-2 border-indigo-600 focus:outline-none tab-btn" onclick="switchTab('text')">
+                            Text & Link
+                        </button>
+                        <button id="tab-file" class="flex-1 pb-2 text-sm font-semibold text-slate-400 border-b-2 border-transparent hover:text-slate-600 dark:hover:text-slate-300 focus:outline-none tab-btn" onclick="switchTab('file')">
+                            File (<1MB)
+                        </button>
+                    </div>
+
+                    <!-- Text Input -->
+                    <div id="panel-text" class="space-y-4">
+                        <textarea id="text-content" rows="6" placeholder="Type or paste text, codes, notes, or links here..." class="w-full p-3 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-sans"></textarea>
+                        
+                        <button id="send-text-btn" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-paper-plane"></i> Send to Room
+                        </button>
+                    </div>
+
+                    <!-- File Input -->
+                    <div id="panel-file" class="space-y-4 hidden">
+                        <div class="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-6 text-center hover:border-indigo-500 dark:hover:border-indigo-400 transition cursor-pointer relative" id="drop-zone">
+                            <input type="file" id="file-input" class="absolute inset-0 opacity-0 cursor-pointer">
+                            <i class="fa-solid fa-file-arrow-up text-3xl text-slate-400 mb-2"></i>
+                            <p class="text-xs font-semibold text-slate-600 dark:text-slate-300" id="file-label">Choose a file or drag & drop</p>
+                            <p class="text-[10px] text-slate-400 mt-1">Max size: 1MB</p>
+                        </div>
+                        <div id="file-info" class="hidden flex items-center justify-between p-3 bg-slate-100 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
+                            <div class="flex items-center gap-2 min-w-0">
+                                <i class="fa-solid fa-file-lines text-indigo-500"></i>
+                                <span id="selected-file-name" class="text-xs font-semibold truncate max-w-[150px]">file.txt</span>
+                            </div>
+                            <button id="clear-file-btn" class="text-slate-400 hover:text-rose-500 transition"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <button id="send-file-btn" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2" disabled>
+                            <i class="fa-solid fa-circle-arrow-up"></i> Upload File
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Side: Feed -->
+            <div class="md:col-span-7 space-y-4">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-lg font-bold flex items-center gap-2">
+                        <i class="fa-solid fa-list text-indigo-500"></i> Room Feed <span id="feed-count" class="text-xs font-normal bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 px-2.5 py-0.5 rounded-full">0 items</span>
+                    </h2>
+                    <button id="clear-room-btn" class="text-xs font-semibold text-rose-500 hover:text-rose-600 transition flex items-center gap-1.5 px-2.5 py-1.5 border border-rose-100 dark:border-rose-950/40 bg-rose-50/50 dark:bg-rose-950/10 rounded-xl">
+                        <i class="fa-solid fa-trash-can"></i> Clear Room
+                    </button>
+                </div>
+
+                <!-- Empty State -->
+                <div id="empty-state" class="glass-panel border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl p-12 text-center shadow-sm">
+                    <div class="w-16 h-16 bg-slate-100 dark:bg-slate-900 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-400">
+                        <i class="fa-solid fa-folder-open text-2xl"></i>
+                    </div>
+                    <h3 class="text-sm font-semibold mb-1">Room is empty</h3>
+                    <p class="text-xs text-slate-400 max-w-xs mx-auto">Items dropped here will instantly show up on other devices tuned to this same room.</p>
+                </div>
+
+                <!-- Items Container -->
+                <div id="items-list" class="space-y-4 max-h-[65vh] overflow-y-auto pr-1"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK Imports (Static ESM Modules) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global sandboxed settings
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'clouddrop-default';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' 
+            ? JSON.parse(__firebase_config) 
+            : {
+                apiKey: "",
+                authDomain: "clouddrop-default.firebaseapp.com",
+                projectId: "clouddrop-default",
+                storageBucket: "clouddrop-default.appspot.com",
+                messagingSenderId: "12345678",
+                appId: "1:12345:web:12345"
+            };
+
+        // Firebase Initialization
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // Core App State
+        let currentUser = null;
+        let currentRoom = "room-1";
+        let activeRoomDocRef = null;
+        let unsubscribeRoomListener = null;
+        let currentItems = [];
+
+        // Selectors
+        const statusBadge = document.getElementById('status-badge');
+        const roomSelect = document.getElementById('room-select');
+        const shareRoomBtn = document.getElementById('share-room-btn');
+        const clearRoomBtn = document.getElementById('clear-room-btn');
+        const textContent = document.getElementById('text-content');
+        const sendTextBtn = document.getElementById('send-text-btn');
+        const fileInput = document.getElementById('file-input');
+        const dropZone = document.getElementById('drop-zone');
+        const fileLabel = document.getElementById('file-label');
+        const fileInfo = document.getElementById('file-info');
+        const selectedFileName = document.getElementById('selected-file-name');
+        const clearFileBtn = document.getElementById('clear-file-btn');
+        const sendFileBtn = document.getElementById('send-file-btn');
+        const itemsList = document.getElementById('items-list');
+        const emptyState = document.getElementById('empty-state');
+        const feedCount = document.getElementById('feed-count');
+        const themeToggle = document.getElementById('theme-toggle');
+
+        let selectedFileBase64 = null;
+        let selectedFileMeta = null;
+
+        // Custom Notification (replacing window.alert)
+        function showNotification(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `p-4 rounded-xl shadow-lg border text-xs font-semibold flex items-center gap-2 transform transition-all duration-300 translate-y-2 opacity-0 pointer-events-auto max-w-sm`;
+            
+            const colors = {
+                info: 'bg-white dark:bg-slate-900 border-indigo-100 dark:border-indigo-950 text-indigo-600 dark:text-indigo-400',
+                success: 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-950 text-emerald-600 dark:text-emerald-400',
+                error: 'bg-rose-50 dark:bg-rose-950/20 border-rose-100 dark:border-rose-950 text-rose-600 dark:text-rose-400'
+            };
+
+            const icons = {
+                info: '<i class="fa-solid fa-circle-info"></i>',
+                success: '<i class="fa-solid fa-circle-check"></i>',
+                error: '<i class="fa-solid fa-triangle-exclamation"></i>'
+            };
+
+            toast.className += ` ${colors[type]}`;
+            toast.innerHTML = `${icons[type]} <span>${message}</span>`;
+            
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.add('translate-y-2', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // Initialize Authentication (Rule 3)
+        async function initializeAuth() {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (err) {
+                console.error("Auth init failed: ", err);
+                showNotification("Initialization error. Check connection.", "error");
+            }
+        }
+
+        // Room Parsing and Loading
+        function parseRoomFromUrl() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const roomParam = urlParams.get('room');
+            if (roomParam) {
+                const cleaned = roomParam.toLowerCase().trim();
+                // Ensure it is one of the available 5 rooms
+                if (['room-1', 'room-2', 'room-3', 'room-4', 'room-5'].includes(cleaned)) {
+                    return cleaned;
+                }
+            }
+            return null;
+        }
+
+        function updateRoomUrl(roomName) {
+            const newUrl = `${window.location.origin}${window.location.pathname}?room=${roomName}`;
+            window.history.replaceState({ path: newUrl }, '', newUrl);
+        }
+
+        // Establish real-time connection to a sync room (Rules 1 & 2)
+        async function connectToRoom(roomName) {
+            if (!currentUser) return;
+
+            if (unsubscribeRoomListener) {
+                unsubscribeRoomListener();
+            }
+
+            currentRoom = roomName;
+            roomSelect.value = currentRoom;
+            updateRoomUrl(currentRoom);
+
+            statusBadge.textContent = "Synced";
+            statusBadge.className = "px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300";
+
+            // Strict collection path matching RULE 1
+            activeRoomDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'sync_rooms', `room_${currentRoom}`);
+
+            try {
+                const docSnap = await getDoc(activeRoomDocRef);
+                if (!docSnap.exists()) {
+                    await setDoc(activeRoomDocRef, {
+                        roomName: currentRoom,
+                        items: [],
+                        updatedAt: Date.now()
+                    });
+                }
+
+                unsubscribeRoomListener = onSnapshot(activeRoomDocRef, (snapshot) => {
+                    if (snapshot.exists()) {
+                        const data = snapshot.data();
+                        currentItems = data.items || [];
+                        // Sort by newest first locally (Rule 2)
+                        currentItems.sort((a, b) => b.timestamp - a.timestamp);
+                        renderItems(currentItems);
+                    }
+                }, (error) => {
+                    console.error("Firestore feed error: ", error);
+                    showNotification("Sync connection dropped. Retrying...", "error");
+                });
+
+            } catch (err) {
+                console.error("Connection failed: ", err);
+                showNotification("Could not connect to sync database.", "error");
+            }
+        }
+
+        // Render feed items
+        function renderItems(items) {
+            feedCount.textContent = `${items.length} item${items.length === 1 ? '' : 's'}`;
+
+            if (items.length === 0) {
+                emptyState.classList.remove('hidden');
+                itemsList.classList.add('hidden');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+            itemsList.classList.remove('hidden');
+            itemsList.innerHTML = '';
+
+            items.forEach((item) => {
+                const itemEl = document.createElement('div');
+                itemEl.className = `glass-panel border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-3 transition-transform duration-300 hover:scale-[1.01]`;
+                
+                const timeString = new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                
+                let iconHtml = '<i class="fa-solid fa-font text-indigo-500"></i>';
+                let typeLabel = "Text Clip";
+                
+                if (item.type === 'link') {
+                    iconHtml = '<i class="fa-solid fa-link text-sky-500"></i>';
+                    typeLabel = "Link";
+                } else if (item.type === 'file') {
+                    iconHtml = '<i class="fa-solid fa-file-lines text-amber-500"></i>';
+                    typeLabel = `File (${item.fileName})`;
+                }
+
+                itemEl.innerHTML = `
+                    <div class="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-900 pb-2">
+                        <div class="flex items-center gap-2">
+                            ${iconHtml}
+                            <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">${typeLabel}</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-[10px] text-slate-400">${timeString}</span>
+                            <button class="delete-btn text-slate-400 hover:text-rose-500 transition px-1" data-id="${item.id}" title="Delete Item">
+                                <i class="fa-solid fa-trash-can text-xs"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+
+                const bodyContainer = document.createElement('div');
+                bodyContainer.className = 'text-sm font-sans break-words whitespace-pre-wrap leading-relaxed text-slate-800 dark:text-slate-200';
+
+                if (item.type === 'link') {
+                    bodyContainer.innerHTML = `<a href="${escapeHtml(item.content)}" target="_blank" class="text-indigo-600 dark:text-indigo-400 hover:underline inline-flex items-center gap-1.5 break-all">${escapeHtml(item.content)} <i class="fa-solid fa-up-right-from-square text-xs"></i></a>`;
+                } else if (item.type === 'file') {
+                    bodyContainer.innerHTML = `
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
+                            <div class="flex items-center gap-2.5 min-w-0">
+                                <i class="fa-solid fa-file-arrow-down text-xl text-indigo-500"></i>
+                                <div class="min-w-0">
+                                    <p class="font-semibold text-xs truncate max-w-[200px] sm:max-w-xs">${escapeHtml(item.fileName)}</p>
+                                    <p class="text-[10px] text-slate-400">Transferred File</p>
+                                </div>
+                            </div>
+                            <button class="download-btn w-full sm:w-auto px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition" data-id="${item.id}">
+                                <i class="fa-solid fa-download"></i> Download
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    bodyContainer.textContent = item.content;
+                }
+
+                itemEl.appendChild(bodyContainer);
+
+                if (item.type === 'text' || item.type === 'link') {
+                    const actionFooter = document.createElement('div');
+                    actionFooter.className = 'flex justify-end pt-2 border-t border-slate-100 dark:border-slate-900/50';
+                    actionFooter.innerHTML = `
+                        <button class="copy-btn text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition flex items-center gap-1" data-content="${encodeURIComponent(item.content)}">
+                            <i class="fa-solid fa-copy"></i> Copy
+                        </button>
+                    `;
+                    itemEl.appendChild(actionFooter);
+                }
+
+                itemsList.appendChild(itemEl);
+            });
+
+            bindDynamicItemEvents();
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+
+        function bindDynamicItemEvents() {
+            // Copy Action
+            document.querySelectorAll('.copy-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const content = decodeURIComponent(btn.getAttribute('data-content'));
+                    const temp = document.createElement('textarea');
+                    temp.value = content;
+                    document.body.appendChild(temp);
+                    temp.select();
+                    try {
+                        document.execCommand('copy');
+                        showNotification("Copied content!", "success");
+                    } catch (err) {
+                        showNotification("Failed to copy", "error");
+                    }
+                    document.body.removeChild(temp);
+                });
+            });
+
+            // Download Action
+            document.querySelectorAll('.download-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const itemId = btn.getAttribute('data-id');
+                    const targetItem = currentItems.find(i => i.id === itemId);
+                    if (!targetItem) return;
+
+                    try {
+                        const base64Data = targetItem.content.split(',')[1] || targetItem.content;
+                        const mimeType = targetItem.mimeType || 'application/octet-stream';
+                        const binaryStr = atob(base64Data);
+                        const len = binaryStr.length;
+                        const bytes = new Uint8Array(len);
+                        for (let i = 0; i < len; i++) {
+                            bytes[i] = binaryStr.charCodeAt(i);
+                        }
+                        const blob = new Blob([bytes], { type: mimeType });
+                        const link = document.createElement('a');
+                        link.href = URL.createObjectURL(blob);
+                        link.download = targetItem.fileName;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        showNotification(`Downloaded: ${targetItem.fileName}`, "success");
+                    } catch (err) {
+                        console.error(err);
+                        showNotification("Could not download file.", "error");
+                    }
+                });
+            });
+
+            // Delete Action
+            document.querySelectorAll('.delete-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const itemId = btn.getAttribute('data-id');
+                    if (!activeRoomDocRef) return;
+
+                    const updatedItems = currentItems.filter(item => item.id !== itemId);
+                    try {
+                        await updateDoc(activeRoomDocRef, {
+                            items: updatedItems,
+                            updatedAt: Date.now()
+                        });
+                        showNotification("Item deleted", "info");
+                    } catch (err) {
+                        showNotification("Could not delete item", "error");
+                    }
+                });
+            });
+        }
+
+        // Submissions
+        async function submitText() {
+            const rawContent = textContent.value.trim();
+            if (!rawContent) {
+                showNotification("Nothing to send.", "error");
+                return;
+            }
+
+            const isUrl = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/i.test(rawContent);
+            const newItem = {
+                id: crypto.randomUUID(),
+                type: isUrl ? 'link' : 'text',
+                content: rawContent,
+                timestamp: Date.now()
+            };
+
+            try {
+                sendTextBtn.disabled = true;
+                sendTextBtn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> Sending...';
+
+                await updateDoc(activeRoomDocRef, {
+                    items: [...currentItems, newItem],
+                    updatedAt: Date.now()
+                });
+
+                textContent.value = '';
+                showNotification("Shared successfully!", "success");
+            } catch (err) {
+                showNotification("Error sending content", "error");
+            } finally {
+                sendTextBtn.disabled = false;
+                sendTextBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Send to Room';
+            }
+        }
+
+        async function submitFile() {
+            if (!selectedFileBase64 || !selectedFileMeta) return;
+
+            const newItem = {
+                id: crypto.randomUUID(),
+                type: 'file',
+                fileName: selectedFileMeta.name,
+                mimeType: selectedFileMeta.type,
+                content: selectedFileBase64,
+                timestamp: Date.now()
+            };
+
+            try {
+                sendFileBtn.disabled = true;
+                sendFileBtn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> Uploading...';
+
+                await updateDoc(activeRoomDocRef, {
+                    items: [...currentItems, newItem],
+                    updatedAt: Date.now()
+                });
+
+                clearFileSelection();
+                switchTab('text');
+                showNotification("File shared!", "success");
+            } catch (err) {
+                showNotification("File sync failed", "error");
+            } finally {
+                sendFileBtn.disabled = false;
+                sendFileBtn.innerHTML = '<i class="fa-solid fa-circle-arrow-up"></i> Upload File';
+            }
+        }
+
+        function handleFileSelection(file) {
+            if (!file) return;
+
+            if (file.size > 1024 * 1024) {
+                showNotification("Max file limit is 1MB.", "error");
+                clearFileSelection();
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                selectedFileBase64 = e.target.result;
+                selectedFileMeta = {
+                    name: file.name,
+                    type: file.type || 'application/octet-stream'
+                };
+
+                selectedFileName.textContent = file.name;
+                fileInfo.classList.remove('hidden');
+                dropZone.classList.add('hidden');
+                sendFileBtn.removeAttribute('disabled');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function clearFileSelection() {
+            selectedFileBase64 = null;
+            selectedFileMeta = null;
+            fileInput.value = '';
+            fileInfo.classList.add('hidden');
+            dropZone.classList.remove('hidden');
+            sendFileBtn.setAttribute('disabled', 'true');
+        }
+
+        // Room Clear
+        async function clearRoomItems() {
+            if (!activeRoomDocRef) return;
+            try {
+                await updateDoc(activeRoomDocRef, {
+                    items: [],
+                    updatedAt: Date.now()
+                });
+                showNotification("Room emptied!", "info");
+            } catch (err) {
+                showNotification("Error clearing room.", "error");
+            }
+        }
+
+        function copyShareUrl() {
+            const shareUrl = `${window.location.origin}${window.location.pathname}?room=${currentRoom}`;
+            const temp = document.createElement('textarea');
+            temp.value = shareUrl;
+            document.body.appendChild(temp);
+            temp.select();
+            try {
+                document.execCommand('copy');
+                showNotification(`Copied Room Link!`, "success");
+            } catch (err) {
+                showNotification("Failed to copy link", "error");
+            }
+            document.body.removeChild(temp);
+        }
+
+        // App Initial Setup
+        window.addEventListener('DOMContentLoaded', async () => {
+            // Theme setting
+            if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            }
+
+            themeToggle.addEventListener('click', () => {
+                if (document.documentElement.classList.contains('dark')) {
+                    document.documentElement.classList.remove('dark');
+                    localStorage.setItem('theme', 'light');
+                } else {
+                    document.documentElement.classList.add('dark');
+                    localStorage.setItem('theme', 'dark');
+                }
+            });
+
+            await initializeAuth();
+
+            onAuthStateChanged(auth, async (user) => {
+                if (user) {
+                    currentUser = user;
+                    // Read URL param or default strictly to room-1
+                    const initialRoom = parseRoomFromUrl() || "room-1";
+                    connectToRoom(initialRoom);
+                } else {
+                    currentUser = null;
+                    statusBadge.textContent = "Offline";
+                    statusBadge.className = "px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-300";
+                }
+            });
+
+            // Dropdown change handler
+            roomSelect.addEventListener('change', (e) => {
+                connectToRoom(e.target.value);
+            });
+
+            shareRoomBtn.addEventListener('click', copyShareUrl);
+            clearRoomBtn.addEventListener('click', clearRoomItems);
+            sendTextBtn.addEventListener('click', submitText);
+            sendFileBtn.addEventListener('click', submitFile);
+
+            // Drag/Drop Setup
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('border-indigo-500', 'bg-indigo-50/20');
+            });
+
+            dropZone.addEventListener('dragleave', () => {
+                dropZone.classList.remove('border-indigo-500', 'bg-indigo-50/20');
+            });
+
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('border-indigo-500', 'bg-indigo-50/20');
+                if (e.dataTransfer.files.length > 0) {
+                    handleFileSelection(e.dataTransfer.files[0]);
+                }
+            });
+
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) {
+                    handleFileSelection(e.target.files[0]);
+                }
+            });
+
+            clearFileBtn.addEventListener('click', clearFileSelection);
+        });
+
+        // Tab Switching Helper
+        window.switchTab = function(tabName) {
+            const textBtn = document.getElementById('tab-text');
+            const fileBtn = document.getElementById('tab-file');
+            const textPanel = document.getElementById('panel-text');
+            const filePanel = document.getElementById('panel-file');
+
+            if (tabName === 'text') {
+                textBtn.className = "flex-1 pb-2 text-sm font-semibold text-indigo-600 border-b-2 border-indigo-600 focus:outline-none";
+                fileBtn.className = "flex-1 pb-2 text-sm font-semibold text-slate-400 border-b-2 border-transparent hover:text-slate-600 dark:hover:text-slate-300 focus:outline-none";
+                textPanel.classList.remove('hidden');
+                filePanel.classList.add('hidden');
+            } else {
+                fileBtn.className = "flex-1 pb-2 text-sm font-semibold text-indigo-600 border-b-2 border-indigo-600 focus:outline-none";
+                textBtn.className = "flex-1 pb-2 text-sm font-semibold text-slate-400 border-b-2 border-transparent hover:text-slate-600 dark:hover:text-slate-300 focus:outline-none";
+                filePanel.classList.remove('hidden');
+                textPanel.classList.add('hidden');
+            }
+        };
+    </script>
+</body>
+</html>
